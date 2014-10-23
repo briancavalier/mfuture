@@ -1,11 +1,14 @@
-exports.create = create;
-exports.never = never;
-exports.of = of;
-exports.map = map;
+exports.create  = create;
+exports.never   = never;
+exports.of      = of;
+exports.map     = map;
+exports.join    = join;
 exports.flatMap = flatMap;
-exports.catch = exports.catchError = catchError;
-exports.get = get;
+exports.get     = get;
+exports.catch   = exports.catchError = catchError;
 
+// Create a future by executing a function that will eventually
+// provide its value
 function create(f) {
 	var fv = new FutureValue();
 
@@ -18,35 +21,50 @@ function create(f) {
 	return fv.future;
 }
 
+// Never singleton
 var _never = new Never();
 function never() {
 	return _never;
 }
 
+// Create a future with value x
 function of(x) {
 	return new Fulfilled(x);
 }
 
+// Return a new future whose value has been transformed by f
 function map(f, future) {
 	return future.when(f);
 }
 
+// Turn a future future value into a future value
+function join(future) {
+	return future.join();
+}
+
+// Transform future's value into a new future
 function flatMap(f, future) {
 	return map(f, future).join();
 }
 
+// Recover from a failed future
 function catchError(f, future) {
 	return future.when(null, f);
 }
 
+// Execute f with the value of a future when it becomes available
+// If future fails, get will throw an uncatchable error
+// Does not return a new future.
 function get(f, future) {
 	future.when(f, fail);
 }
 
+// Throw an uncatchable error
 function fail(e) {
 	setTimeout(function() { throw e; }, 0);
 }
 
+// Interface for setting a future value's actual value
 function FutureValue() {
 	this.future = new Pending();
 }
