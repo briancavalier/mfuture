@@ -1,8 +1,8 @@
 var mfuture = require('../mfuture');
 
-var future = mfuture.create(function(value) {
+var future = mfuture.create(function(set, err) {
 	setTimeout(function() {
-		value.error(new Error('hello'));
+		err(new Error('hello'));
 	}, 100);
 });
 

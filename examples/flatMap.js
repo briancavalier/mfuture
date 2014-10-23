@@ -1,15 +1,15 @@
 var mfuture = require('../mfuture');
 
-var future = mfuture.create(function(value) {
+var future = mfuture.create(function(set) {
 	setTimeout(function() {
-		value.set('hello');
+		set('hello');
 	}, 100);
 });
 
 future.flatMap(function(s) {
-	return mfuture.create(function(value) {
+	return mfuture.create(function(set) {
 		setTimeout(function() {
-			value.set(s + ', world!');
+			set(s + ', world!');
 		}, 100);
 	});
 }).get(console.log.bind(console));
