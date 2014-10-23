@@ -1,0 +1,18 @@
+{
+  "name": "mfuture",
+  "version": "1.0.0",
+  "description": "Simple monadic future values",
+  "main": "mfuture.js",
+  "scripts": {
+    "test": "buster test -e node"
+  },
+  "keywords": [
+    "future",
+    "deferred",
+    "monad",
+    "monadic",
+    "functional"
+  ],
+  "author": "brian@hovercraftstudios.com",
+  "license": "MIT"
+}
