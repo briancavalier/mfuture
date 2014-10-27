@@ -24,15 +24,15 @@ function create(f) {
 		err(e);
 	}
 
-	function set(x) { become(new Fulfilled(x), pending); }
-	function err(x) { become(new Failed(x), pending); }
+	function set(x) { become(new Fulfilled(now(), x), pending); }
+	function err(x) { become(new Failed(now(), x), pending); }
 
 	return pending;
 }
 
 // Create a future with value x
 function of(x) {
-	return new Fulfilled(x);
+	return new Fulfilled(minTime(), x);
 }
 
 // --------------------------------------------------------------
@@ -51,6 +51,13 @@ function join(future) {
 // Transform future's value into a new future
 function flatMap(f, future) {
 	return future.flatMap(f);
+}
+
+// Apply a future function to a future x to get a future y
+function ap(ff, fx) {
+	return ff.flatMap(function(f) {
+		return fx.map(f);
+	});
 }
 
 // Execute f with the value of a future when it becomes available
@@ -82,17 +89,21 @@ function earliest(a, b) {
 	var at = a.time();
 	var bt = b.time();
 
-	if(at < bt) {
-		return a;
-	} else if(bt < at) {
-		return b;
-	}
+	return at < bt ? a
+	     : bt < at ? b
+	     : awaitEarliest(a, b);
+}
 
-	// Neither is available yet, await each
-	return create(function(set, err) {
-		a.when(set, err);
-		b.when(set, err);
-	});
+function awaitEarliest(a, b) {
+	var p = new Pending();
+
+	a.when(becomea, becomea);
+	b.when(becomeb, becomeb);
+
+	return p;
+
+	function becomea() { become(a, p); }
+	function becomeb() { become(b, p); }
 }
 
 // --------------------------------------------------------------
@@ -105,7 +116,7 @@ function catchError(f, future) {
 
 // Create a failed future
 function throwError(e) {
-	return new Failed(e);
+	return new Failed(minTime(), e);
 }
 
 // Throw an uncatchable error
@@ -131,6 +142,10 @@ function maxTime() {
 	return Infinity;
 }
 
+function minTime() {
+	return -Infinity;
+}
+
 function timer(f, t, x) {
 	return setTimeout(f, t, x);
 }
@@ -138,16 +153,16 @@ function timer(f, t, x) {
 // --------------------------------------------------------------
 // Future prototype
 
+function Future() {}
+
 // Default implementations, subtypes override where necessary
-var future = {
-	map:     function(f)  { return map(f, this); },
-	flatMap: function(f)  { return join(map(f, this)); },
-	catch:   function(f)  { return catchError(f, this); },
-	get:     function(f)  { return get(f, this); },
-	join:    function()   { return this.value; },
-	time:    function()   { return this.at; },
-	delay:   function(dt) { return delay(dt, this); }
-};
+Future.prototype.map     = function(f)  { return map(f, this); };
+Future.prototype.flatMap = function(f)  { return map(f, this).join(); };
+Future.prototype.catch   = function(f)  { return catchError(f, this); };
+Future.prototype.get     = function(f)  { return get(f, this); };
+Future.prototype.join    = function()   { return this.value; };
+Future.prototype.time    = function()   { return this.at; };
+Future.prototype.delay   = function(dt) { return delay(dt, this); };
 
 // --------------------------------------------------------------
 // Never
@@ -155,7 +170,7 @@ var future = {
 // Future that will never acquire a value
 function Never() {}
 
-Never.prototype = Object.create(future);
+Never.prototype = Object.create(Future.prototype);
 Never.prototype.when = Never.prototype.join = Never.prototype.flatMap = never;
 Never.prototype.time = maxTime;
 
@@ -169,15 +184,15 @@ function never() {
 // Fulfilled
 
 // Future whose value is available immediately
-function Fulfilled(x) {
-	this.at = now();
+function Fulfilled(t, x) {
+	this.at = t;
 	this.value = x;
 }
 
-Fulfilled.prototype = Object.create(future);
+Fulfilled.prototype = Object.create(Future.prototype);
 
 Fulfilled.prototype.when = function(f) {
-	return mapFuture(f, this.value);
+	return mapFuture(f, this.at, this.value);
 };
 
 Fulfilled.prototype.flatMap = function(f) {
@@ -188,19 +203,19 @@ Fulfilled.prototype.flatMap = function(f) {
 // Failed
 
 // Future that has failed to produce a value
-function Failed(e) {
-	this.at = now();
+function Failed(t, e) {
+	this.at = t;
 	this.value = e;
 }
 
-Failed.prototype = Object.create(future);
+Failed.prototype = Object.create(Future.prototype);
 
 Failed.prototype.when = function(f, r) {
-	return mapFuture(r, this.value);
+	return mapFuture(r, this.at, this.value);
 };
 
 Failed.prototype.flatMap = function() {
-	return new Failed(this.value);
+	return new Failed(this.at, this.value);
 };
 
 // --------------------------------------------------------------
@@ -213,7 +228,7 @@ function Pending() {
 	this.queue = [];
 }
 
-Pending.prototype = Object.create(future);
+Pending.prototype = Object.create(Future.prototype);
 
 Pending.prototype.when = function(f, r) {
 	if (this.resolved) {
@@ -249,18 +264,18 @@ function become(future, pending) {
 
 	pending.resolved = true;
 	pending.value = future;
-	resolve(pending.queue, future);
+	pending.queue = resolve(pending.queue, future);
 }
 
 // --------------------------------------------------------------
 // Helpers
 
 // Try to map a value to a future
-function mapFuture(f, x) {
+function mapFuture(f, t, x) {
 	try {
-		return new Fulfilled(f(x));
+		return new Fulfilled(t, f(x));
 	} catch(e) {
-		return new Failed(e);
+		return new Failed(t, e);
 	}
 }
 
@@ -283,7 +298,12 @@ function Join(p) {
 }
 
 Join.prototype.resolve = function(x) {
-	become(x.join(), this.p);
+	var xj = x.join();
+	var value = xj.flatMap(function(xv) {
+		return new Fulfilled(Math.max(x.time(), xj.time()), xv);
+	});
+
+	become(value, this.p);
 };
 
 function identity(x) { return x; }
