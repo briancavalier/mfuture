@@ -3,6 +3,7 @@ exports.never    = never;
 exports.of       = of;
 exports.delay    = delayed;
 exports.map      = map;
+exports.ap       = ap;
 exports.join     = join;
 exports.flatMap  = flatMap;
 exports.get      = get;
@@ -60,12 +61,18 @@ function ap(ff, fx) {
 	});
 }
 
+// --------------------------------------------------------------
+// Get value
+
 // Execute f with the value of a future when it becomes available
 // If future fails, get will throw an uncatchable error
 // Does not return a new future.
 function get(f, future) {
-	future.when(f, fail);
+	future.map(f).catch(fail);
 }
+
+// --------------------------------------------------------------
+// Time
 
 // Create a future that reveals its value x only after a delay
 function delayed(dt, x) {
@@ -73,9 +80,6 @@ function delayed(dt, x) {
 		timer(set, dt, x);
 	});
 }
-
-// --------------------------------------------------------------
-// Time
 
 // Delay a future
 function delay(dt, future) {
@@ -151,18 +155,19 @@ function timer(f, t, x) {
 }
 
 // --------------------------------------------------------------
-// Future prototype
+// Base Future prototype
 
 function Future() {}
 
 // Default implementations, subtypes override where necessary
 Future.prototype.map     = function(f)  { return map(f, this); };
-Future.prototype.flatMap = function(f)  { return map(f, this).join(); };
-Future.prototype.catch   = function(f)  { return catchError(f, this); };
-Future.prototype.get     = function(f)  { return get(f, this); };
+Future.prototype.ap      = function(f)  { return ap(f, this); };
 Future.prototype.join    = function()   { return this.value; };
+Future.prototype.flatMap = function(f)  { return map(f, this).join(); };
+Future.prototype.get     = function(f)  { return get(f, this); };
 Future.prototype.time    = function()   { return this.at; };
 Future.prototype.delay   = function(dt) { return delay(dt, this); };
+Future.prototype.catch   = function(f)  { return catchError(f, this); };
 
 // --------------------------------------------------------------
 // Never
