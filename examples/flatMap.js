@@ -9,7 +9,7 @@ var f12 = f1.flatMap(function() {
 
 // f12 has later time and later value
 f12.get(function(x) {
-	console.log(f12.time(), x);
+	console.log(f12.time(), f1.time(), f2.time(), x);
 });
 
 var f21 = f2.flatMap(function() {
@@ -18,5 +18,5 @@ var f21 = f2.flatMap(function() {
 
 // f21 has later time, but earlier value
 f21.get(function(x) {
-	console.log(f21.time(), x);
+	console.log(f21.time(), f1.time(), f2.time(), x);
 });
