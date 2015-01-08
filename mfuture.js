@@ -254,6 +254,7 @@ Failed.prototype.map
 // Future whose time and value cannot be known until later
 function Future() {
 	this.value = never();
+	this.resolved = false;
 	this.queue = [];
 }
 
@@ -282,7 +283,7 @@ Future.prototype.catch   = function(f)  {
 };
 
 Future.prototype.flatMap = function(f)  {
-	if (hasArrived(this)) {
+	if (this.resolved) {
 		return this.value.flatMap(f);
 	}
 
@@ -292,7 +293,7 @@ Future.prototype.flatMap = function(f)  {
 };
 
 Future.prototype.when = function(f, r) {
-	if (hasArrived(this)) {
+	if (this.resolved) {
 		return this.value.when(f, r);
 	}
 
@@ -309,16 +310,17 @@ Future.prototype.time = function() {
 	return this.value.time();
 };
 
-// Assign the state of future to target. Throws if pending
-// already has a value.
-// target must be a Future, value can be any future
-function become(value, target) {
-	if(hasArrived(target)) {
+// Make target future indistinguishable from value. Throws if target
+// already has a value.  Once ta
+// target must be a Future, future can be any future
+function become(future, target) {
+	if(target.resolved) {
 		throw new Error('Future value already set');
 	}
 
-	target.value = value;
-	target.queue = resolve(target.queue, value);
+	target.resolved = true;
+	target.value = future;
+	target.queue = resolve(target.queue, future);
 }
 
 // Returns true if Future f has arrived (thus its time and
